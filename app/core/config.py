@@ -28,5 +28,10 @@ class Settings(BaseSettings):
     # Path to the directory holding the three serialized model files
     ML_MODELS_DIR: str = "app/ml_models"
 
+    # TEMPORARY / DEMO-ONLY. See app/routers/demo_admin_bootstrap.py — leave
+    # unset (the default) outside of a live demo. Setting this is what turns
+    # that route on at all; it's how you remove it without touching code.
+    DEMO_ADMIN_SECRET: str = ""
+
 
 settings = Settings()
