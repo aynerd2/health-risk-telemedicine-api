@@ -1,0 +1,25 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+# sqlmodel 0.0.22 (original pin) predates pydantic v2.11+ and breaks table
+# model creation on the pydantic version FastAPI 0.115 pulls in on Python
+# 3.14 (`Field 'x' requires a type annotation`) — 0.0.42 is confirmed working.
+sqlmodel==0.0.42
+pymysql==1.1.1
+cryptography==43.0.1
+alembic==1.13.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.9
+pydantic-settings==2.5.2
+email-validator==2.2.0
+# scikit-learn 1.5.2 / numpy 2.1.1 (original pins) have no cp314 wheels and
+# fail to build from source on this machine's Python 3.14. 1.9.0 / 2.5.3 are
+# confirmed working (fit/predict_proba/joblib round-trip verified).
+scikit-learn==1.9.0
+joblib==1.4.2
+numpy==2.5.3
+pandas==2.3.3
+websockets==13.1
+pytest==8.3.3
+httpx==0.27.2

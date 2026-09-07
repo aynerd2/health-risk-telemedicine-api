@@ -1,0 +1,44 @@
+{
+  "majority_baseline_accuracy": 0.915,
+  "cross_validation": {
+    "accuracy": {
+      "mean": 0.887,
+      "std": 0.0046
+    },
+    "precision": {
+      "mean": 0.4213,
+      "std": 0.0107
+    },
+    "recall": {
+      "mean": 0.8797,
+      "std": 0.004
+    },
+    "f1": {
+      "mean": 0.5697,
+      "std": 0.0097
+    }
+  },
+  "test_set": {
+    "accuracy": 0.8889,
+    "balanced_accuracy": 0.891,
+    "precision": 0.4267,
+    "recall": 0.8935,
+    "f1": 0.5776,
+    "confusion_matrix": {
+      "labels": [
+        0,
+        1
+      ],
+      "matrix": [
+        [
+          16259,
+          2041
+        ],
+        [
+          181,
+          1519
+        ]
+      ]
+    }
+  }
+}
