@@ -29,9 +29,20 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, session: Session = Depends(get_session)):
     if payload.role == UserRole.admin:
-        # Admin accounts are never created through public self-registration —
-        # bootstrap the first one with `python -m app.core.bootstrap` (see README).
-        raise HTTPException(status_code=400, detail="Cannot self-register as admin")
+        # TEMPORARY — REMOVE AFTER THE FIRST ADMIN ACCOUNT IS CREATED.
+        # Public self-registration as admin is allowed *only* as a one-time
+        # bootstrap when no admin exists yet at all (for environments like a
+        # managed host where there's no shell access to run
+        # `python -m app.core.bootstrap`). The moment one admin exists, this
+        # closes itself automatically — every subsequent attempt hits the
+        # `existing_admin` check below and is rejected exactly like the old
+        # unconditional block was. Revert to unconditionally rejecting
+        # role="admin" once you no longer need this bootstrap path, and
+        # remove the matching temporary "Admin" option in the frontend's
+        # register page.
+        existing_admin = session.exec(select(User).where(User.role == UserRole.admin)).first()
+        if existing_admin:
+            raise HTTPException(status_code=400, detail="Cannot self-register as admin")
 
     existing = session.exec(select(User).where(User.email == payload.email)).first()
     if existing:

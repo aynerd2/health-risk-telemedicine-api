@@ -26,7 +26,22 @@ def test_register_duplicate_email_rejected(client):
     assert resp.status_code == 400
 
 
-def test_cannot_self_register_as_admin(client):
+def test_first_admin_registration_allowed_when_none_exists(client):
+    resp = client.post(
+        "/api/v1/auth/register",
+        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["role"] == "admin"
+
+
+def test_second_admin_registration_rejected(client):
+    first = client.post(
+        "/api/v1/auth/register",
+        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin"},
+    )
+    assert first.status_code == 201
+
     resp = client.post(
         "/api/v1/auth/register",
         json={"full_name": "Sneaky", "email": "sneaky@example.com", "password": "secretpass123", "role": "admin"},

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routers import admin, appointments, auth, demo_admin_bootstrap, prediction, telemedicine
+from app.routers import admin, appointments, auth, prediction, telemedicine
 from app.services.prediction_service import load_models
 
 
@@ -40,14 +40,6 @@ app.include_router(appointments.router)
 app.include_router(appointments.doctors_router)
 app.include_router(admin.router)
 app.include_router(telemedicine.router)
-
-# TEMPORARY / DEMO-ONLY — see app/routers/demo_admin_bootstrap.py for what
-# this is and why it's gated. Only mounted at all when DEMO_ADMIN_SECRET is
-# set, so leaving that env var unset in production removes this route
-# entirely without touching code. Delete this block (and the file it
-# imports) once the demo is over.
-if settings.DEMO_ADMIN_SECRET:
-    app.include_router(demo_admin_bootstrap.router)
 
 
 @app.get("/api/v1/health", tags=["Health"])
