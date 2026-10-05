@@ -114,7 +114,11 @@ def rescore(conditions: list[Condition], apply: bool) -> None:
         # A real table in the same DB, so a restore doesn't depend on the
         # machine this script happened to run on still having the JSON file.
         id_list = ",".join(str(i) for i in ids)  # integers from our own query — safe to inline
-        session.exec(text(f"CREATE TABLE {backup_table} AS SELECT * FROM prediction WHERE prediction_id IN ({id_list})"))
+        # MySQL hosts like Aiven set sql_require_primary_key, which rejects a
+        # plain CREATE TABLE ... AS SELECT; MySQL can declare the key inline,
+        # SQLite can't parse that form.
+        primary_key = " (PRIMARY KEY (prediction_id))" if engine.dialect.name == "mysql" else ""
+        session.exec(text(f"CREATE TABLE {backup_table}{primary_key} AS SELECT * FROM prediction WHERE prediction_id IN ({id_list})"))
         session.commit()
         backed_up = session.exec(text(f"SELECT COUNT(*) FROM {backup_table}")).one()[0]
         if backed_up != len(ids):
