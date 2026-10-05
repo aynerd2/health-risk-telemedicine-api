@@ -1,7 +1,11 @@
 .env
 venv/
 __pycache__/
+*.pyc
 *.db
+
+# Datasets are downloaded from Kaggle (links in README.md), not committed
+training_data/*.csv
 
 # Patient-data backups written by scripts/rescore_predictions.py — never commit
 rescore_backups/

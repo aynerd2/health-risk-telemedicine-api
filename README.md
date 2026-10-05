@@ -26,7 +26,7 @@ app/
 ├── services/      the ML prediction service
 └── ml_models/     the three trained model pipelines (.pkl) + their metrics (.json) — committed
 scripts/           training scripts (train_*.py) and rescore_predictions.py
-training_data/     the three CSV datasets the models were trained on
+training_data/     where the training CSVs go (downloaded from Kaggle — not committed)
 migrations/        Alembic migrations
 requirements.txt
 .env.example
@@ -80,7 +80,15 @@ None of these are keys you sign up for anywhere — they're either generated loc
 
 The three trained models are included in `app/ml_models/` (`heart_model.pkl`, `diabetes_model.pkl`, `hypertension_model.pkl`, a few KB each), so the API works straight after cloning — no training step needed. Each sits next to a `*_metrics.json` with its test-set confusion matrix, accuracy/precision/recall/F1/balanced accuracy, and 5-fold cross-validation results.
 
-The training scripts are in `scripts/` for retraining — e.g. after changing a dataset or the preprocessing. From the `backend/` directory:
+The training scripts are in `scripts/` for retraining — e.g. after changing a dataset or the preprocessing. The datasets aren't committed; download them from Kaggle and save them in `training_data/` under these names:
+
+| Model | Kaggle dataset | Save as |
+|---|---|---|
+| Heart disease | [johnsmith88/heart-disease-dataset](https://www.kaggle.com/datasets/johnsmith88/heart-disease-dataset) (`heart.csv`, 1,025 rows) | `training_data/Heart_disease.csv` |
+| Diabetes | [iammustafatz/diabetes-prediction-dataset](https://www.kaggle.com/datasets/iammustafatz/diabetes-prediction-dataset) (`diabetes_prediction_dataset.csv`, 100,000 rows) | `training_data/Diabetes.csv` |
+| Hypertension | [sulianova/cardiovascular-disease-dataset](https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset) (`cardio_train.csv`, 70,000 rows, `;`-separated) | `training_data/cardio_train.csv` |
+
+Then, from the `backend/` directory:
 
 ```bash
 python scripts/train_heart_model.py         # training_data/Heart_disease.csv
@@ -92,8 +100,9 @@ Each script drops duplicate rows, does a stratified 80/20 split with 5-fold cros
 
 Dataset quirks the scripts already handle (see each script's comments):
 
-- **Heart** (Kaggle copy of UCI Cleveland): 723 of its 1,025 rows are exact duplicates (302 unique), and its `target` is **inverted** relative to UCI — `0` means heart disease. It also renumbers `cp`/`restecg`/`slope`/`thal`; `app/services/prediction_service.py` translates the intake form's values to those codes.
-- **Hypertension** (`sulianova/cardiovascular-disease-dataset`): the label is derived from the BP readings (≥130/80), implausible readings are dropped, and the model is trained on the other risk factors only.
+- **Heart** (johnsmith88's Kaggle copy of UCI Cleveland): 723 of its 1,025 rows are exact duplicates (302 unique), and its `target` is **inverted** relative to UCI — `0` means heart disease. It also renumbers `cp`/`restecg`/`slope`/`thal`; `app/services/prediction_service.py` translates the intake form's values to those codes.
+- **Diabetes**: 3,854 of its 100,000 rows are exact duplicates (96,146 unique) — mostly rows sharing the BMI fill value 27.32 and the same coarse lab levels, so many may be distinct patients; they're dropped so no identical row lands on both sides of the split.
+- **Hypertension** (sulianova): 24 rows are duplicates apart from `id`, the label is derived from the BP readings (≥130/80), implausible readings are dropped, and the model is trained on the other risk factors only.
 
 After retraining, stored predictions were made by the old model — `python scripts/rescore_predictions.py` (dry run by default) re-scores them.
 
