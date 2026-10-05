@@ -49,6 +49,13 @@ DIASTOLIC_THRESHOLD = 80
 def load_and_clean() -> pd.DataFrame:
     df = pd.read_csv(DATA_PATH, sep=";")
 
+    # `id` is unique per row, so df.duplicated() finds nothing — but 24 rows
+    # are identical in every measured column (age in days, height, weight,
+    # BP, ...): copies under a fresh id. Drop them before anything else.
+    n_raw = len(df)
+    df = df.drop_duplicates(subset=[c for c in df.columns if c != "id"])
+    print(f"Dropped {n_raw - len(df)} duplicate records ignoring id ({n_raw} -> {len(df)})")
+
     # Plausible clinical ranges — drops the known bad rows in this dataset
     # (e.g. ap_hi of -150 or 16020, ap_lo > ap_hi) before they can corrupt
     # the derived label or the BMI/age features.
@@ -83,7 +90,7 @@ def build_pipeline() -> Pipeline:
 
 def main() -> None:
     df = load_and_clean()
-    print(f"Rows after cleaning implausible BP/height/weight readings: {len(df)} (from {len(pd.read_csv(DATA_PATH, sep=';'))})")
+    print(f"Rows after dedup + cleaning implausible BP/height/weight readings: {len(df)}")
 
     X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
     y = df["hypertension"]

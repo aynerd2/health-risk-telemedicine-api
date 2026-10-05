@@ -45,6 +45,14 @@ def build_pipeline() -> Pipeline:
 
 def main() -> None:
     df = pd.read_csv(DATA_PATH)
+    # 3,854 exact duplicate rows. Caveat: 99% of them have bmi == 27.32 (the
+    # dataset's fill value for missing BMI) and HbA1c/glucose take only 18
+    # values each, so most are probably distinct patients colliding on coarse
+    # values rather than copied records. Dropped anyway so no identical row
+    # can sit on both sides of the split.
+    n_raw = len(df)
+    df = df.drop_duplicates().reset_index(drop=True)
+    print(f"Dropped {n_raw - len(df)} exact duplicate rows ({n_raw} -> {len(df)})")
     X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
     y = df[TARGET]
 
