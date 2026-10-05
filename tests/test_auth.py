@@ -1,7 +1,10 @@
+import pytest
+
+
 def register_patient(client, email="patient@example.com", password="secretpass123"):
     return client.post(
         "/api/v1/auth/register",
-        json={"full_name": "Pat Ient", "email": email, "password": password, "role": "patient"},
+        json={"full_name": "Pat Ient", "email": email, "password": password, "role": "patient", "consent_given": True},
     )
 
 
@@ -29,7 +32,7 @@ def test_register_duplicate_email_rejected(client):
 def test_first_admin_registration_allowed_when_none_exists(client):
     resp = client.post(
         "/api/v1/auth/register",
-        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin"},
+        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin", "consent_given": True},
     )
     assert resp.status_code == 201
     assert resp.json()["role"] == "admin"
@@ -38,13 +41,13 @@ def test_first_admin_registration_allowed_when_none_exists(client):
 def test_second_admin_registration_rejected(client):
     first = client.post(
         "/api/v1/auth/register",
-        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin"},
+        json={"full_name": "First Admin", "email": "first-admin@example.com", "password": "secretpass123", "role": "admin", "consent_given": True},
     )
     assert first.status_code == 201
 
     resp = client.post(
         "/api/v1/auth/register",
-        json={"full_name": "Sneaky", "email": "sneaky@example.com", "password": "secretpass123", "role": "admin"},
+        json={"full_name": "Sneaky", "email": "sneaky@example.com", "password": "secretpass123", "role": "admin", "consent_given": True},
     )
     assert resp.status_code == 400
 
@@ -116,3 +119,22 @@ def test_forgot_password_unknown_email_does_not_leak(client):
     resp = client.post("/api/v1/auth/forgot-password", json={"email": "nobody@example.com"})
     assert resp.status_code == 200
     assert resp.json()["reset_token"] == ""
+
+
+def test_register_records_consent_timestamp(client, session):
+    from sqlmodel import select
+
+    from app.models.entities import User
+
+    assert register_patient(client).status_code == 201
+    user = session.exec(select(User).where(User.email == "patient@example.com")).one()
+    assert user.consent_given_at is not None
+
+
+@pytest.mark.parametrize("consent", [False, None], ids=["declined", "missing"])
+def test_register_without_consent_rejected(client, consent):
+    payload = {"full_name": "No Consent", "email": "nc@example.com", "password": "secretpass123", "role": "patient"}
+    if consent is not None:
+        payload["consent_given"] = consent
+    resp = client.post("/api/v1/auth/register", json=payload)
+    assert resp.status_code == 422

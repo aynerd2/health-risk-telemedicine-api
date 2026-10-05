@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from app.models.entities import UserRole
 
@@ -8,6 +8,14 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role: UserRole = UserRole.patient
+    consent_given: bool
+
+    @field_validator("consent_given")
+    @classmethod
+    def consent_must_be_given(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("You must consent to the processing of your health data to register")
+        return value
 
 
 class LoginRequest(BaseModel):

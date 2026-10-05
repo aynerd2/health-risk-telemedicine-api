@@ -25,7 +25,7 @@ VALID_INTAKE = {
 def register_and_login(client, email="patient@example.com", role="patient"):
     client.post(
         "/api/v1/auth/register",
-        json={"full_name": "Pat Ient", "email": email, "password": "secretpass123", "role": role},
+        json={"full_name": "Pat Ient", "email": email, "password": "secretpass123", "role": role, "consent_given": True},
     )
     login = client.post("/api/v1/auth/login", data={"username": email, "password": "secretpass123"}).json()
     return {"Authorization": f"Bearer {login['access_token']}"}

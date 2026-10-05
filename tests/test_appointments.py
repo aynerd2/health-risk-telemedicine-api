@@ -1,7 +1,7 @@
 def register_and_login(client, email, role):
     client.post(
         "/api/v1/auth/register",
-        json={"full_name": email.split("@")[0], "email": email, "password": "secretpass123", "role": role},
+        json={"full_name": email.split("@")[0], "email": email, "password": "secretpass123", "role": role, "consent_given": True},
     )
     login = client.post("/api/v1/auth/login", data={"username": email, "password": "secretpass123"}).json()
     return {"Authorization": f"Bearer {login['access_token']}"}

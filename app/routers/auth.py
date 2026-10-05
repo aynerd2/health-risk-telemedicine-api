@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
@@ -53,6 +55,7 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
         email=payload.email,
         password_hash=hash_password(payload.password),
         role=payload.role,
+        consent_given_at=datetime.utcnow(),  # RegisterRequest rejects consent_given=False
     )
     session.add(user)
     session.commit()

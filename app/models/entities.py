@@ -22,6 +22,9 @@ class User(SQLModel, table=True):
     role: UserRole
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # When the user ticked the registration consent checkbox. Nullable only
+    # because accounts created before consent was collected have no record.
+    consent_given_at: datetime | None = None
 
 
 class Patient(SQLModel, table=True):
