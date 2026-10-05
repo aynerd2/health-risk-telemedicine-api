@@ -24,8 +24,10 @@ app/
 ├── schemas/       request/response validation
 ├── routers/       auth, predictions, appointments, admin, telemedicine
 ├── services/      the ML prediction service
-└── ml_models/     trained model files (not committed — see "Training the models" below)
-training_data/     put your CSV datasets here before training (also not committed)
+└── ml_models/     the three trained model pipelines (.pkl) + their metrics (.json) — committed
+scripts/           training scripts (train_*.py) and rescore_predictions.py
+training_data/     the three CSV datasets the models were trained on
+migrations/        Alembic migrations
 requirements.txt
 .env.example
 ```
@@ -76,19 +78,24 @@ None of these are keys you sign up for anywhere — they're either generated loc
 
 ## Training the risk models
 
-The three trained model files aren't in this repo — they're a few hundred KB each, and it felt more honest to have people train them on data they've actually inspected rather than ship a black box.
+The three trained models are included in `app/ml_models/` (`heart_model.pkl`, `diabetes_model.pkl`, `hypertension_model.pkl`, a few KB each), so the API works straight after cloning — no training step needed. Each sits next to a `*_metrics.json` with its test-set confusion matrix, accuracy/precision/recall/F1/balanced accuracy, and 5-fold cross-validation results.
 
-1. Get three datasets — a heart disease dataset, a diabetes dataset, and one with real blood pressure readings for hypertension (a note on this below).
-2. Drop the CSVs into `training_data/`.
-3. Run:
+The training scripts are in `scripts/` for retraining — e.g. after changing a dataset or the preprocessing. From the `backend/` directory:
 
 ```bash
-python -m app.training.train_heart_model
-python -m app.training.train_diabetes_model
-python -m app.training.train_hypertension_model
+python scripts/train_heart_model.py         # training_data/Heart_disease.csv
+python scripts/train_diabetes_model.py      # training_data/Diabetes.csv
+python scripts/train_hypertension_model.py  # training_data/cardio_train.csv
 ```
 
-Each script handles preprocessing, does a stratified train/test split with cross-validation, prints accuracy/precision/recall/F1/balanced accuracy, and saves the fitted pipeline to `app/ml_models/`.
+Each script drops duplicate rows, does a stratified 80/20 split with 5-fold cross-validation on the training portion, prints the metrics, and overwrites the model's `.pkl` and `_metrics.json` in `app/ml_models/`. Commit both — the deployed API loads whatever `.pkl` is in the repo.
+
+Dataset quirks the scripts already handle (see each script's comments):
+
+- **Heart** (Kaggle copy of UCI Cleveland): 723 of its 1,025 rows are exact duplicates (302 unique), and its `target` is **inverted** relative to UCI — `0` means heart disease. It also renumbers `cp`/`restecg`/`slope`/`thal`; `app/services/prediction_service.py` translates the intake form's values to those codes.
+- **Hypertension** (`sulianova/cardiovascular-disease-dataset`): the label is derived from the BP readings (≥130/80), implausible readings are dropped, and the model is trained on the other risk factors only.
+
+After retraining, stored predictions were made by the old model — `python scripts/rescore_predictions.py` (dry run by default) re-scores them.
 
 **Two things worth knowing if you're sourcing your own dataset:**
 
@@ -132,7 +139,7 @@ This API needs to run as a persistent process — it holds three ML models in me
 alembic upgrade head
 ```
 
-Run this against your production database before the first deploy, and after any change to the models.
+Run this against your production database before the first deploy, and after any change to the database tables in `app/models/` (not the ML models). If the database was created by the app on startup rather than by Alembic (no `alembic_version` table), run `alembic stamp ef78ccfb0247` once first.
 
 ## Disclaimer
 
