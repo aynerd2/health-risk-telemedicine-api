@@ -75,8 +75,15 @@ def stub_ml_models(client: TestClient):
     (load_models(), which finds no .pkl files and sets None) just loaded.
     """
     dummy = MagicMock()
+    dummy.classes_ = [0, 1]
     dummy.predict_proba.return_value = [[0.2, 0.8]]
+    # The heart model's "has disease" label is 0 (inverted Kaggle target —
+    # see prediction_service._POSITIVE_LABEL), so its stub puts the 0.8 there.
+    heart_dummy = MagicMock()
+    heart_dummy.classes_ = [0, 1]
+    heart_dummy.predict_proba.return_value = [[0.8, 0.2]]
     prediction_service._MODELS.update({condition: dummy for condition in Condition})
+    prediction_service._MODELS[Condition.heart_disease] = heart_dummy
     yield
     prediction_service._MODELS.clear()
 

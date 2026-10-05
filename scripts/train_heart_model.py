@@ -1,7 +1,7 @@
 """
 Train the heart-disease risk model (Sections 3.7-3.10) on
 backend/training_data/Heart_disease.csv (UCI heart-disease dataset, 1025
-rows, target already binary and balanced: 526 disease / 499 no-disease).
+rows but only 302 unique — exact duplicates are dropped before splitting).
 
 Every column in this dataset is already numeric — sex/cp/fbs/restecg/exang/
 slope/ca/thal are small-cardinality codes, so they're one-hot encoded as
@@ -43,10 +43,22 @@ def build_pipeline() -> Pipeline:
 
 def main() -> None:
     df = pd.read_csv(DATA_PATH)
+    # The 1025-row CSV contains only 302 unique records (723 exact
+    # duplicates). Without dropping them, copies of the same patient land in
+    # both train and test, leaking labels and inflating the test metrics.
+    n_raw = len(df)
+    df = df.drop_duplicates().reset_index(drop=True)
+    print(f"Dropped {n_raw - len(df)} exact duplicate rows ({n_raw} -> {len(df)})")
     X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
     y = df[TARGET]
 
-    run_training("heart", build_pipeline(), X, y)
+    # This Kaggle copy of UCI Cleveland has an INVERTED target: matched
+    # row-by-row against UCI's processed.cleveland.data, target=0 is exactly
+    # the 138 patients UCI diagnoses with disease (num > 0) and target=1 the
+    # 164 without. The labels are left as-is (so the saved model's classes
+    # stay [0, 1]); disease is reported as the positive class instead, and
+    # prediction_service maps P(label 0) to elevated risk.
+    run_training("heart", build_pipeline(), X, y, pos_label=0)
 
 
 if __name__ == "__main__":

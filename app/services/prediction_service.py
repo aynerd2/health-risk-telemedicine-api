@@ -30,13 +30,26 @@ app/ml_models/hypertension_metrics.json and scripts/train_hypertension_model.py.
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from app.core.config import settings
-from app.models.entities import Condition, RiskClass, SexOption, SmokingHistory
+from app.models.entities import ChestPainType, Condition, RestingECG, RiskClass, SexOption, SmokingHistory, STSlope, Thalassemia
 from app.schemas.prediction import ConditionRisk, HealthIntakeRequest
 
 DECISION_THRESHOLD = 0.5  # Section 3.9
+
+# Which training label means "has the condition" for each model. The heart
+# CSV (Kaggle johnsmith88 copy of UCI Cleveland) has its target INVERTED
+# relative to UCI: matching all 302 unique rows back to UCI's
+# processed.cleveland.data shows target=1 on exactly the 164 rows UCI
+# diagnoses as no disease (num == 0) and target=0 on the 138 with disease.
+# So for heart disease, P(elevated risk) is the probability of label 0.
+_POSITIVE_LABEL = {
+    Condition.heart_disease: 0,
+    Condition.diabetes: 1,
+    Condition.hypertension: 1,
+}
 
 _MODELS: dict[Condition, object] = {}
 
@@ -95,6 +108,34 @@ def _sex_to_cardio_gender(sex: SexOption) -> int:
     return 2 if sex == SexOption.male else 1
 
 
+# The Kaggle heart CSV also renumbered cp/restecg/slope/thal relative to UCI
+# (verified row-by-row against processed.cleveland.data), so the API's
+# clinical enums can't be passed through as-is — these translate each
+# clinical meaning to the code the heart model was actually trained on.
+_HEART_CP_CODE = {
+    ChestPainType.typical_angina: 3,
+    ChestPainType.atypical_angina: 1,
+    ChestPainType.non_anginal: 2,
+    ChestPainType.asymptomatic: 0,
+}
+_HEART_RESTECG_CODE = {
+    RestingECG.normal: 1,
+    RestingECG.st_t_abnormality: 2,
+    RestingECG.left_ventricular_hypertrophy: 0,
+}
+_HEART_SLOPE_CODE = {
+    STSlope.upsloping: 2,
+    STSlope.flat: 1,
+    STSlope.downsloping: 0,
+}
+_HEART_THAL_CODE = {
+    Thalassemia.unknown: 0,  # missing ('?') in UCI
+    Thalassemia.normal: 2,
+    Thalassemia.fixed_defect: 1,
+    Thalassemia.reversible_defect: 3,
+}
+
+
 def _fbs_flag(blood_glucose_mgdl: float | None) -> float | None:
     """Heart model's `fbs` feature is "fasting blood sugar > 120 mg/dl" as a
     0/1 flag; the intake form collects a single glucose reading instead."""
@@ -132,17 +173,19 @@ def _glucose_category(mg_dl: float | None) -> int | None:
 
 def _smoker_flag(smoking_history: SmokingHistory | None) -> float | None:
     """cardio_train.csv's `smoke` is a simple current-smoker 0/1 flag,
-    coarser than the diabetes model's 6-value smoking_history."""
-    if smoking_history is None:
+    coarser than the diabetes model's 6-value smoking_history. "No Info"
+    and "ever" (smoked at some point) don't say whether the patient smokes
+    *now*, so they're treated as missing and imputed rather than guessed."""
+    if smoking_history in (None, SmokingHistory.no_info, SmokingHistory.ever):
         return None
-    return 1.0 if smoking_history in (SmokingHistory.current, SmokingHistory.ever) else 0.0
+    return 1.0 if smoking_history == SmokingHistory.current else 0.0
 
 
 # --- per-condition feature frames ------------------------------------------
 # Column names/order below must match backend/scripts/train_*.py exactly.
-# Missing (None) values become NaN, which each pipeline's SimpleImputer
-# fills with the training set's median (numeric) or most frequent value
-# (categorical) — see Section 3.7.
+# Missing (None) values must reach the pipeline as NaN — see build_frame()
+# — so each pipeline's SimpleImputer fills them with the training set's
+# median (numeric) or most frequent value (categorical), per Section 3.7.
 
 
 def _heart_frame(intake: HealthIntakeRequest) -> pd.DataFrame:
@@ -155,13 +198,13 @@ def _heart_frame(intake: HealthIntakeRequest) -> pd.DataFrame:
                 "thalach": intake.max_heart_rate,
                 "oldpeak": intake.st_depression,
                 "sex": _sex_to_heart_code(intake.sex),
-                "cp": intake.chest_pain_type.value if intake.chest_pain_type is not None else None,
+                "cp": _HEART_CP_CODE.get(intake.chest_pain_type),
                 "fbs": _fbs_flag(intake.blood_glucose_mgdl),
-                "restecg": intake.resting_ecg.value if intake.resting_ecg is not None else None,
+                "restecg": _HEART_RESTECG_CODE.get(intake.resting_ecg),
                 "exang": _bool_to_int(intake.exercise_angina),
-                "slope": intake.st_slope.value if intake.st_slope is not None else None,
+                "slope": _HEART_SLOPE_CODE.get(intake.st_slope),
                 "ca": intake.major_vessels_colored,
-                "thal": intake.thalassemia.value if intake.thalassemia is not None else None,
+                "thal": _HEART_THAL_CODE.get(intake.thalassemia),
             }
         ]
     )
@@ -201,6 +244,16 @@ def _hypertension_frame(intake: HealthIntakeRequest) -> pd.DataFrame:
     )
 
 
+def build_frame(condition: Condition, intake: HealthIntakeRequest) -> pd.DataFrame:
+    """The model-ready single-row frame for one condition. A blank field is
+    None in an object-dtype column, and SimpleImputer only recognises NaN as
+    missing there — None slipped past it unimputed and the OneHotEncoder
+    then zeroed the whole feature as an "unknown" category. Converting to
+    NaN makes blanks get the training-set mode/median as intended."""
+    frame = _FRAME_BUILDERS[condition](intake)
+    return frame.where(frame.notna(), np.nan)
+
+
 _FRAME_BUILDERS = {
     Condition.heart_disease: _heart_frame,
     Condition.diabetes: _diabetes_frame,
@@ -208,17 +261,19 @@ _FRAME_BUILDERS = {
 }
 
 
+def predict_one(condition: Condition, intake: HealthIntakeRequest) -> ConditionRisk:
+    model = _MODELS.get(condition)
+    if model is None:
+        raise RuntimeError(
+            f"Model for '{condition.value}' is not loaded. "
+            f"Place the trained .pkl file in {settings.ML_MODELS_DIR}."
+        )
+    frame = build_frame(condition, intake)
+    positive_column = list(model.classes_).index(_POSITIVE_LABEL[condition])
+    probability = float(model.predict_proba(frame)[0][positive_column])  # P(elevated risk), Eq. 3.2
+    risk_class = RiskClass.elevated if probability >= DECISION_THRESHOLD else RiskClass.low
+    return ConditionRisk(condition=condition, risk_score=round(probability, 4), risk_class=risk_class)
+
+
 def predict_all(intake: HealthIntakeRequest) -> list[ConditionRisk]:
-    results: list[ConditionRisk] = []
-    for condition in Condition:
-        model = _MODELS.get(condition)
-        if model is None:
-            raise RuntimeError(
-                f"Model for '{condition.value}' is not loaded. "
-                f"Place the trained .pkl file in {settings.ML_MODELS_DIR}."
-            )
-        frame = _FRAME_BUILDERS[condition](intake)
-        probability = float(model.predict_proba(frame)[0][1])  # P(elevated risk), Eq. 3.2
-        risk_class = RiskClass.elevated if probability >= DECISION_THRESHOLD else RiskClass.low
-        results.append(ConditionRisk(condition=condition, risk_score=round(probability, 4), risk_class=risk_class))
-    return results
+    return [predict_one(condition, intake) for condition in Condition]

@@ -47,7 +47,8 @@ class SexOption(str, Enum):
 
 
 class ChestPainType(int, Enum):
-    """Matches the `cp` codes in the heart-disease training data."""
+    """API/form codes. NOT the heart CSV's `cp` codes — prediction_service
+    translates them (_HEART_CP_CODE)."""
 
     typical_angina = 0
     atypical_angina = 1
@@ -56,7 +57,8 @@ class ChestPainType(int, Enum):
 
 
 class RestingECG(int, Enum):
-    """Matches the `restecg` codes in the heart-disease training data."""
+    """API/form codes. NOT the heart CSV's `restecg` codes — prediction_service
+    translates them (_HEART_RESTECG_CODE)."""
 
     normal = 0
     st_t_abnormality = 1
@@ -64,7 +66,8 @@ class RestingECG(int, Enum):
 
 
 class STSlope(int, Enum):
-    """Matches the `slope` codes in the heart-disease training data."""
+    """API/form codes. NOT the heart CSV's `slope` codes — prediction_service
+    translates them (_HEART_SLOPE_CODE)."""
 
     upsloping = 0
     flat = 1
@@ -72,7 +75,8 @@ class STSlope(int, Enum):
 
 
 class Thalassemia(int, Enum):
-    """Matches the `thal` codes in the heart-disease training data."""
+    """API/form codes. NOT the heart CSV's `thal` codes — prediction_service
+    translates them (_HEART_THAL_CODE)."""
 
     unknown = 0
     normal = 1
